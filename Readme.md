@@ -16,7 +16,6 @@ To build the project, you need to use the `cmake` utility to generate the makefi
 
 - Clone the repository and go inside the folder path.
 
-  ```
 - Create a `build` folder by :
 
   ```

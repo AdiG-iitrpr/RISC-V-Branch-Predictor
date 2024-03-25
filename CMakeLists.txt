@@ -33,4 +33,8 @@ include_directories(src)
 
 add_executable(branchPredictor
    src/main.cpp
+   src/branchPredictor/BranchPredictor.cpp
+   src/branchPredictor/Instruction.cpp
+   src/branchPredictor/Parser.cpp
+   src/utils/FileUtils.cpp
 )

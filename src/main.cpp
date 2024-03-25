@@ -1,3 +1,6 @@
+#include "branchPredictor/BranchPredictor.h"
+#include "branchPredictor/Parser.h"
+
 #include <cstdlib>
 #include <iostream>
 #include <filesystem>
@@ -16,6 +19,11 @@ int main(int argc, char **argv) {
 
    std::cout << "===  Branch Predictor ===\n";
    std::cout << "Tracefile: " << traceFilePath << std::endl;
+
+   std::unique_ptr<Parser> parser(new Parser());
+   std::unique_ptr<BranchPredictor> branchPredictor(new BranchPredictor(*parser));
+
+   branchPredictor->simulate(traceFilePath);
 
    return EXIT_SUCCESS;
 }
