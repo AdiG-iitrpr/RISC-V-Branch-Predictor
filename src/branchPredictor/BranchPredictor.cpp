@@ -5,7 +5,7 @@
 #include <iostream>
 #include <vector>
 
-BranchPredictor::BranchPredictor(Parser &parser): parser(parser) {
+BranchPredictor::BranchPredictor(Parser &parser, BranchHistoryTable &branchHistoryTable): parser(parser) , branchHistoryTable(branchHistoryTable) {
 
 }
 
@@ -15,7 +15,7 @@ void BranchPredictor::simulate(const std::string& traceFilePath) {
 
     std::vector<Instruction> instructions = parser.parse(traceContent);
 
-    std::unordered_map<std::string, bool> branchTakenMap;
+    std::vector<std::pair<std::string, bool>> actualBranchOutcome;
 
     for (size_t i = 0; i < instructions.size(); ++i) {
 
@@ -28,10 +28,12 @@ void BranchPredictor::simulate(const std::string& traceFilePath) {
             std::string nextAddress = i == instructions.size() - 1 ? " " : instructions[i + 1].getAddress();
 
             bool branchTaken = nextAddress == targetAddress;
-            branchTakenMap[instruction.getAddress()] = branchTaken;
+            actualBranchOutcome.push_back(std::make_pair(instruction.getAddress(), branchTaken));
 
         }
     }
+
+    std::cout << std::endl;
 
     bool simulation = true;
     while (simulation) {
@@ -48,16 +50,16 @@ void BranchPredictor::simulate(const std::string& traceFilePath) {
 
         switch (choice) {
         case 1:
-            alwaysTaken(branchTakenMap);
+            alwaysTaken(actualBranchOutcome);
             break;
         case 2:
-            alwaysNotTaken(branchTakenMap);
+            alwaysNotTaken(actualBranchOutcome);
             break;
         case 3:
-            oneBitPredictor(branchTakenMap);
+            oneBitPredictor(actualBranchOutcome);
             break;
         case 4:
-            twoBitPredictor(branchTakenMap);
+            twoBitPredictor(actualBranchOutcome);
             break;
         case 5:
             simulation = false;
@@ -66,6 +68,8 @@ void BranchPredictor::simulate(const std::string& traceFilePath) {
             std::cerr << "Invalid choice.\n";
             break;
         }
+
+        branchHistoryTable.clear();
     }
 }
 
@@ -101,57 +105,57 @@ std::string BranchPredictor::calculateTargetAddress(const Instruction& instructi
     return targetAddress;
 }
 
-void BranchPredictor::alwaysTaken(const std::unordered_map<std::string, bool> &branchTakenMap) {
+void BranchPredictor::alwaysTaken(const std::vector<std::pair<std::string, bool>> &actualBranchOutcome) {
 
     int totalBranches = 0;
     int correctPredictions = 0;
 
-    for (const auto& pair : branchTakenMap) {
+    for (const auto& [address, branchOutcome] : actualBranchOutcome) {
         totalBranches++;
-        if (pair.second == true) {
+        if (branchOutcome)
             correctPredictions++;
-        }
     }
 
     double accuracy = (static_cast<double>(correctPredictions) / totalBranches) * 100.0;
     std::cout << "Branch Prediction Accuracy (Always Taken): " << accuracy << "%" << std::endl;
 }
 
-void BranchPredictor::alwaysNotTaken(const std::unordered_map<std::string, bool> &branchTakenMap) {
+void BranchPredictor::alwaysNotTaken(const std::vector<std::pair<std::string, bool>> &actualBranchOutcome) {
 
     int totalBranches = 0;
     int correctPredictions = 0;
 
-    for (const auto& pair : branchTakenMap) {
+    for (const auto& [address, branchOutcome] : actualBranchOutcome) {
         totalBranches++;
-        if (pair.second != true) {
+        if (!branchOutcome)
             correctPredictions++;
-        }
     }
 
     double accuracy = (static_cast<double>(correctPredictions) / totalBranches) * 100.0;
     std::cout << "Branch Prediction Accuracy (Always Not Taken): " << accuracy << "%" << std::endl;
 }
 
-void BranchPredictor::oneBitPredictor(const std::unordered_map<std::string, bool> &branchTakenMap) {
+void BranchPredictor::oneBitPredictor(const std::vector<std::pair<std::string, bool>> &actualBranchOutcome) {
 
     int totalBranches = 0;
     int correctPredictions = 0;
 
-    bool predicted = true;
+    for (const auto& [address, branchOutcome] : actualBranchOutcome) {
 
-    for (const auto& pair : branchTakenMap) {
         totalBranches++;
-        if (pair.second != predicted) {
+        if (branchHistoryTable.get(address) == -1)
+            branchHistoryTable.update(address, false);
+
+        if (branchOutcome == branchHistoryTable.get(address))
             correctPredictions++;
-        } else
-            predicted = !predicted;
+        else
+            branchHistoryTable.update(address, branchOutcome);
     }
 
     double accuracy = (static_cast<double>(correctPredictions) / totalBranches) * 100.0;
     std::cout << "Branch Prediction Accuracy (1 Bit Predictor): " << accuracy << "%" << std::endl;
 }
 
-void BranchPredictor::twoBitPredictor(const std::unordered_map<std::string, bool> &branchTakenMap) {
+void BranchPredictor::twoBitPredictor(const std::vector<std::pair<std::string, bool>> &actualBranchOutcome) {
 
 }

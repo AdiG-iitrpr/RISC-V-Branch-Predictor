@@ -36,6 +36,7 @@ add_executable(branchPredictor
    src/branchPredictor/BranchPredictor.cpp
    src/branchPredictor/Instruction.cpp
    src/branchPredictor/Parser.cpp
+   src/branchPredictor/BranchHistoryTable.cpp
    src/utils/FileUtils.cpp
    src/utils/NumberUtils.cpp
 )
