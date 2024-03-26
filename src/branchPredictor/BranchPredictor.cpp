@@ -1,5 +1,6 @@
 #include "../utils/FileUtils.h"
 #include "../utils/NumberUtils.h"
+#include "../utils/Enums.h"
 #include "Instruction.h"
 #include "BranchPredictor.h"
 #include <iostream>
@@ -33,12 +34,10 @@ void BranchPredictor::simulate(const std::string& traceFilePath) {
         }
     }
 
-    std::cout << std::endl;
-
     bool simulation = true;
     while (simulation) {
 
-        std::cout << "Choose simulation method:\n";
+        std::cout << "\nChoose simulation method:\n";
         std::cout << "1. Always Taken\n";
         std::cout << "2. Always Not Taken\n";
         std::cout << "3. 1-bit Dynamic Branch Predictor\n";
@@ -47,6 +46,8 @@ void BranchPredictor::simulate(const std::string& traceFilePath) {
 
         int choice;
         std::cin >> choice;
+
+        std::cout << "\n";
 
         switch (choice) {
         case 1:
@@ -143,13 +144,17 @@ void BranchPredictor::oneBitPredictor(const std::vector<std::pair<std::string, b
     for (const auto& [address, branchOutcome] : actualBranchOutcome) {
 
         totalBranches++;
-        if (branchHistoryTable.get(address) == -1)
-            branchHistoryTable.update(address, false);
+        if (branchHistoryTable.get(address) == BranchState::INVALID)
+            branchHistoryTable.update(address, BranchState::NOT_TAKEN);
 
-        if (branchOutcome == branchHistoryTable.get(address))
+        BranchState currentState = branchHistoryTable.get(address);
+
+        if ((branchOutcome and  currentState == BranchState::TAKEN) or (!branchOutcome and currentState == BranchState::NOT_TAKEN))
             correctPredictions++;
+        else if (branchOutcome and currentState == BranchState::NOT_TAKEN)
+            branchHistoryTable.update(address, BranchState::TAKEN);
         else
-            branchHistoryTable.update(address, branchOutcome);
+            branchHistoryTable.update(address, BranchState::NOT_TAKEN);
     }
 
     double accuracy = (static_cast<double>(correctPredictions) / totalBranches) * 100.0;
@@ -158,4 +163,43 @@ void BranchPredictor::oneBitPredictor(const std::vector<std::pair<std::string, b
 
 void BranchPredictor::twoBitPredictor(const std::vector<std::pair<std::string, bool>> &actualBranchOutcome) {
 
+    int totalBranches = 0;
+    int correctPredictions = 0;
+
+    for (const auto& [address, branchOutcome] : actualBranchOutcome) {
+
+        totalBranches++;
+
+        if (branchHistoryTable.get(address) == BranchState::INVALID)
+            branchHistoryTable.update(address, BranchState::WEAKLY_NOT_TAKEN);
+
+        BranchState currentState = branchHistoryTable.get(address);
+
+        if ((currentState == BranchState::STRONGLY_NOT_TAKEN or currentState == BranchState::WEAKLY_NOT_TAKEN) and !branchOutcome)
+            correctPredictions++;
+        else if ((currentState == BranchState::WEAKLY_TAKEN or currentState == BranchState::STRONGLY_TAKEN) and branchOutcome)
+            correctPredictions++;
+
+
+        if (branchOutcome and currentState == BranchState::STRONGLY_NOT_TAKEN)
+            branchHistoryTable.update(address, BranchState::WEAKLY_NOT_TAKEN);
+
+        else if (!branchOutcome and currentState == BranchState::WEAKLY_NOT_TAKEN)
+            branchHistoryTable.update(address, BranchState::STRONGLY_NOT_TAKEN);
+
+        else if (branchOutcome and currentState == BranchState::WEAKLY_NOT_TAKEN)
+            branchHistoryTable.update(address, BranchState::WEAKLY_TAKEN);
+
+        else if (!branchOutcome and currentState == BranchState::WEAKLY_TAKEN)
+            branchHistoryTable.update(address, BranchState::WEAKLY_NOT_TAKEN);
+
+        else if (branchOutcome and currentState == BranchState::WEAKLY_TAKEN)
+            branchHistoryTable.update(address, BranchState::STRONGLY_TAKEN);
+
+        else if (!branchOutcome and currentState == BranchState::STRONGLY_TAKEN)
+            branchHistoryTable.update(address, BranchState::WEAKLY_TAKEN);
+    }
+
+    double accuracy = (static_cast<double>(correctPredictions) / totalBranches) * 100.0;
+    std::cout << "Branch Prediction Accuracy (2 Bit Predictor): " << accuracy << "%" << std::endl;
 }

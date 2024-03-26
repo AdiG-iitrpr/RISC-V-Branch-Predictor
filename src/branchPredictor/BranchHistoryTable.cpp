@@ -2,16 +2,16 @@
 
 BranchHistoryTable::BranchHistoryTable() {}
 
-void BranchHistoryTable::update(const std::string& address, bool taken) {
-    history_table[address] = taken;
+void BranchHistoryTable::update(const std::string& address, BranchState state) {
+    history_table[address] = state;
 }
 
-int BranchHistoryTable::get(const std::string& address) const {
+BranchState BranchHistoryTable::get(const std::string& address) const {
     auto it = history_table.find(address);
     if (it != history_table.end()) {
-        return it->second == true ? 1 : 0 ;
+        return it->second;
     }
-    return -1;
+    return BranchState::INVALID;
 }
 
 void BranchHistoryTable::clear() {
