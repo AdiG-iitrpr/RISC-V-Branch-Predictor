@@ -1,6 +1,7 @@
 #include "branchPredictor/BranchPredictor.h"
 #include "branchPredictor/Parser.h"
 #include "branchPredictor/BranchHistoryTable.h"
+#include "branchPredictor/BranchTargetBuffer.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -23,7 +24,8 @@ int main(int argc, char **argv) {
 
    std::unique_ptr<Parser> parser(new Parser());
    std::unique_ptr<BranchHistoryTable> branchHistoryTable(new BranchHistoryTable());
-   std::unique_ptr<BranchPredictor> branchPredictor(new BranchPredictor(*parser, *branchHistoryTable));
+   std::unique_ptr<BranchTargetBuffer> branchTargetBuffer(new BranchTargetBuffer());
+   std::unique_ptr<BranchPredictor> branchPredictor(new BranchPredictor(*parser, *branchHistoryTable, *branchTargetBuffer));
 
    branchPredictor->simulate(traceFilePath);
 

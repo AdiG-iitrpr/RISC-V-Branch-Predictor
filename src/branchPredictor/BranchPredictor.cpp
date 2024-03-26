@@ -6,7 +6,7 @@
 #include <iostream>
 #include <vector>
 
-BranchPredictor::BranchPredictor(Parser &parser, BranchHistoryTable &branchHistoryTable): parser(parser) , branchHistoryTable(branchHistoryTable) {
+BranchPredictor::BranchPredictor(Parser &parser, BranchHistoryTable &branchHistoryTable, BranchTargetBuffer &branchTargetBuffer): parser(parser) , branchHistoryTable(branchHistoryTable), branchTargetBuffer(branchTargetBuffer) {
 
 }
 
@@ -16,7 +16,7 @@ void BranchPredictor::simulate(const std::string& traceFilePath) {
 
     std::vector<Instruction> instructions = parser.parse(traceContent);
 
-    std::vector<std::pair<std::string, bool>> actualBranchOutcome;
+    std::vector<std::pair<std::pair<std::string, std::string>, bool>> actualBranchOutcome;
 
     for (size_t i = 0; i < instructions.size(); ++i) {
 
@@ -29,7 +29,7 @@ void BranchPredictor::simulate(const std::string& traceFilePath) {
             std::string nextAddress = i == instructions.size() - 1 ? " " : instructions[i + 1].getAddress();
 
             bool branchTaken = nextAddress == targetAddress;
-            actualBranchOutcome.push_back(std::make_pair(instruction.getAddress(), branchTaken));
+            actualBranchOutcome.push_back(std::make_pair(std::make_pair(instruction.getAddress(), targetAddress), branchTaken));
 
         }
     }
@@ -71,6 +71,7 @@ void BranchPredictor::simulate(const std::string& traceFilePath) {
         }
 
         branchHistoryTable.clear();
+        branchTargetBuffer.clear();
     }
 }
 
@@ -97,7 +98,6 @@ std::string BranchPredictor::calculateTargetAddress(const Instruction& instructi
     int offset = static_cast<int>(offsetBits.to_ulong());
 
     // if sign bit is 1
-
     if (binaryMachineCodeString[0] == '1')
         offset = -4096 - (~(offset - 1));
 
@@ -106,74 +106,105 @@ std::string BranchPredictor::calculateTargetAddress(const Instruction& instructi
     return targetAddress;
 }
 
-void BranchPredictor::alwaysTaken(const std::vector<std::pair<std::string, bool>> &actualBranchOutcome) {
+void BranchPredictor::alwaysTaken( const std::vector<std::pair<std::pair<std::string, std::string>, bool>> &actualBranchOutcome) {
 
     int totalBranches = 0;
     int correctPredictions = 0;
 
-    for (const auto& [address, branchOutcome] : actualBranchOutcome) {
+    for (const auto& [addresses, branchOutcome] : actualBranchOutcome) {
+        const auto& [branchAddress, targetAddress] = addresses;
         totalBranches++;
+
+        if (branchHistoryTable.get(branchAddress) == BranchState::INVALID)
+            branchHistoryTable.update(branchAddress, BranchState::TAKEN);
+
+        branchTargetBuffer.update(branchAddress, targetAddress, branchHistoryTable.get(branchAddress));
+
         if (branchOutcome)
             correctPredictions++;
     }
 
     double accuracy = (static_cast<double>(correctPredictions) / totalBranches) * 100.0;
     std::cout << "Branch Prediction Accuracy (Always Taken): " << accuracy << "%" << std::endl;
+
+    std::cout << "\n";
+    branchTargetBuffer.printTargetBuffer();
 }
 
-void BranchPredictor::alwaysNotTaken(const std::vector<std::pair<std::string, bool>> &actualBranchOutcome) {
+void BranchPredictor::alwaysNotTaken( const std::vector<std::pair<std::pair<std::string, std::string>, bool>> &actualBranchOutcome) {
 
     int totalBranches = 0;
     int correctPredictions = 0;
 
-    for (const auto& [address, branchOutcome] : actualBranchOutcome) {
+    for (const auto& [addresses, branchOutcome] : actualBranchOutcome) {
+        const auto& [branchAddress, targetAddress] = addresses;
         totalBranches++;
+
+        if (branchHistoryTable.get(branchAddress) == BranchState::INVALID)
+            branchHistoryTable.update(branchAddress, BranchState::NOT_TAKEN);
+
+        branchTargetBuffer.update(branchAddress, targetAddress, branchHistoryTable.get(branchAddress));
+
+
         if (!branchOutcome)
             correctPredictions++;
     }
 
     double accuracy = (static_cast<double>(correctPredictions) / totalBranches) * 100.0;
     std::cout << "Branch Prediction Accuracy (Always Not Taken): " << accuracy << "%" << std::endl;
+
+    std::cout << "\n";
+    branchTargetBuffer.printTargetBuffer();
 }
 
-void BranchPredictor::oneBitPredictor(const std::vector<std::pair<std::string, bool>> &actualBranchOutcome) {
+void BranchPredictor::oneBitPredictor(const std::vector<std::pair<std::pair<std::string, std::string>, bool>> &actualBranchOutcome) {
 
     int totalBranches = 0;
     int correctPredictions = 0;
 
-    for (const auto& [address, branchOutcome] : actualBranchOutcome) {
+    for (const auto& [addresses, branchOutcome] : actualBranchOutcome) {
+        const auto& [branchAddress, targetAddress] = addresses;
 
         totalBranches++;
-        if (branchHistoryTable.get(address) == BranchState::INVALID)
-            branchHistoryTable.update(address, BranchState::NOT_TAKEN);
+        if (branchHistoryTable.get(branchAddress) == BranchState::INVALID)
+            branchHistoryTable.update(branchAddress, BranchState::NOT_TAKEN);
 
-        BranchState currentState = branchHistoryTable.get(address);
+        BranchState currentState = branchHistoryTable.get(branchAddress);
+
+        branchTargetBuffer.update(branchAddress, targetAddress, currentState);
+
 
         if ((branchOutcome and  currentState == BranchState::TAKEN) or (!branchOutcome and currentState == BranchState::NOT_TAKEN))
             correctPredictions++;
         else if (branchOutcome and currentState == BranchState::NOT_TAKEN)
-            branchHistoryTable.update(address, BranchState::TAKEN);
+            branchHistoryTable.update(branchAddress, BranchState::TAKEN);
         else
-            branchHistoryTable.update(address, BranchState::NOT_TAKEN);
+            branchHistoryTable.update(branchAddress, BranchState::NOT_TAKEN);
     }
 
     double accuracy = (static_cast<double>(correctPredictions) / totalBranches) * 100.0;
     std::cout << "Branch Prediction Accuracy (1 Bit Predictor): " << accuracy << "%" << std::endl;
+
+    std::cout << "\n";
+    branchTargetBuffer.printTargetBuffer();
 }
 
-void BranchPredictor::twoBitPredictor(const std::vector<std::pair<std::string, bool>> &actualBranchOutcome) {
+void BranchPredictor::twoBitPredictor(const std::vector<std::pair<std::pair<std::string, std::string>, bool>> &actualBranchOutcome) {
 
     int totalBranches = 0;
     int correctPredictions = 0;
 
-    for (const auto& [address, branchOutcome] : actualBranchOutcome) {
+    for (const auto& [addresses, branchOutcome] : actualBranchOutcome) {
+        const auto& [branchAddress, targetAddress] = addresses;
 
         totalBranches++;
 
-        if (branchHistoryTable.get(address) == BranchState::INVALID)
-            branchHistoryTable.update(address, BranchState::WEAKLY_NOT_TAKEN);
+        if (branchHistoryTable.get(branchAddress) == BranchState::INVALID)
+            branchHistoryTable.update(branchAddress, BranchState::WEAKLY_NOT_TAKEN);
 
-        BranchState currentState = branchHistoryTable.get(address);
+        BranchState currentState = branchHistoryTable.get(branchAddress);
+
+        branchTargetBuffer.update(branchAddress, targetAddress, currentState);
 
         if ((currentState == BranchState::STRONGLY_NOT_TAKEN or currentState == BranchState::WEAKLY_NOT_TAKEN) and !branchOutcome)
             correctPredictions++;
@@ -182,24 +213,27 @@ void BranchPredictor::twoBitPredictor(const std::vector<std::pair<std::string, b
 
 
         if (branchOutcome and currentState == BranchState::STRONGLY_NOT_TAKEN)
-            branchHistoryTable.update(address, BranchState::WEAKLY_NOT_TAKEN);
+            branchHistoryTable.update(branchAddress, BranchState::WEAKLY_NOT_TAKEN);
 
         else if (!branchOutcome and currentState == BranchState::WEAKLY_NOT_TAKEN)
-            branchHistoryTable.update(address, BranchState::STRONGLY_NOT_TAKEN);
+            branchHistoryTable.update(branchAddress, BranchState::STRONGLY_NOT_TAKEN);
 
         else if (branchOutcome and currentState == BranchState::WEAKLY_NOT_TAKEN)
-            branchHistoryTable.update(address, BranchState::WEAKLY_TAKEN);
+            branchHistoryTable.update(branchAddress, BranchState::WEAKLY_TAKEN);
 
         else if (!branchOutcome and currentState == BranchState::WEAKLY_TAKEN)
-            branchHistoryTable.update(address, BranchState::WEAKLY_NOT_TAKEN);
+            branchHistoryTable.update(branchAddress, BranchState::WEAKLY_NOT_TAKEN);
 
         else if (branchOutcome and currentState == BranchState::WEAKLY_TAKEN)
-            branchHistoryTable.update(address, BranchState::STRONGLY_TAKEN);
+            branchHistoryTable.update(branchAddress, BranchState::STRONGLY_TAKEN);
 
         else if (!branchOutcome and currentState == BranchState::STRONGLY_TAKEN)
-            branchHistoryTable.update(address, BranchState::WEAKLY_TAKEN);
+            branchHistoryTable.update(branchAddress, BranchState::WEAKLY_TAKEN);
     }
 
     double accuracy = (static_cast<double>(correctPredictions) / totalBranches) * 100.0;
     std::cout << "Branch Prediction Accuracy (2 Bit Predictor): " << accuracy << "%" << std::endl;
+
+    std::cout << "\n";
+    branchTargetBuffer.printTargetBuffer();
 }
