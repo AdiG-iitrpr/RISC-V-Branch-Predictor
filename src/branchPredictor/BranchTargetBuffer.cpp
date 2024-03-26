@@ -1,5 +1,6 @@
 #include "BranchTargetBuffer.h"
 #include <iostream>
+#include <iomanip>
 
 BranchTargetBuffer::BranchTargetBuffer() {}
 
@@ -18,33 +19,47 @@ std::pair<std::string, BranchState> BranchTargetBuffer::get(const std::string& b
 
 void BranchTargetBuffer::printTargetBuffer() const {
     std::cout << "Branch Target Buffer:\n";
+
+    std::cout << std::setw(15) << std::left << "Branch Address" << "| ";
+    std::cout << std::setw(15) << std::left << "Target Address" << "| ";
+    std::cout << std::setw(10) << std::left << "State" << "|\n";
+    std::cout << std::string(45, '-') << "\n";
+
     for (const auto& [branchAddress, entry] : buffer) {
         const auto& [targetAddress, state] = entry;
-        std::cout << branchAddress << " " << targetAddress;
+        std::cout << std::setw(15) << std::left << branchAddress << "| ";
+        std::cout << std::setw(15) << std::left << targetAddress << "| ";
+
         switch (state) {
         case BranchState::STRONGLY_TAKEN:
-            std::cout << " ST\n";
+            std::cout << std::setw(10) << std::left << "ST";
             break;
         case BranchState::WEAKLY_TAKEN:
-            std::cout << " WT\n";
+            std::cout << std::setw(10) << std::left << "WT";
             break;
         case BranchState::STRONGLY_NOT_TAKEN:
-            std::cout << " SNT\n";
+            std::cout << std::setw(10) << std::left << "SNT";
             break;
         case BranchState::WEAKLY_NOT_TAKEN:
-            std::cout << " WNT\n";
+            std::cout << std::setw(10) << std::left << "WNT";
             break;
         case BranchState::TAKEN:
-            std::cout << " T\n";
+            std::cout << std::setw(10) << std::left << "T";
             break;
         case BranchState::NOT_TAKEN:
-            std::cout << " NT\n";
+            std::cout << std::setw(10) << std::left << "NT";
             break;
         default:
-            std::cout << " Invalid\n";
+            std::cout << std::setw(10) << std::left << "Invalid";
         }
+
+        std::cout << "|\n";
     }
+
+    std::cout << std::string(45, '-') << "\n";
 }
+
+
 
 void BranchTargetBuffer::clear() {
     buffer.clear();
